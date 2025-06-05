@@ -1,0 +1,105 @@
+
+
+Build “NutriFix” App (100% Free Stack)
+
+Objective:
+
+Build a cost-free full-stack web application that allows users to upload blood test data and dietary preferences, detects vitamin deficiencies, and generates personalized recipes to fix those deficiencies.
+
+⸻
+
+🔹 1. Stack Selection (Free-Tier Compatible)
+
+Layer	Tool/Service	Free Tier?	Notes
+Frontend	React + Vite	✅	Fast local dev, deploy to Vercel
+Backend	Python + FastAPI	✅	Lightweight and efficient
+Database	Supabase (PostgreSQL)	✅	Free tier with auth, storage
+Hosting	Vercel (frontend)	✅	Easy CI/CD with GitHub
+	Render (backend)	✅	Free web service with autosleep
+OCR	Tesseract.js (client-side)	✅	Avoids backend OCR costs
+AI/LLM	OpenRouter + Mixtral/GPT-J	✅	Use free/open models via proxy
+Recipes DB	Custom CSV + Edamam Trial API	✅	Custom recipes + trial key
+Versioning	GitHub	✅	For code + deployment integration
+
+
+⸻
+
+🔹 2. Frontend Tasks (React + Tailwind CSS)
+	•	Build pages:
+	•	LoginPage.tsx – Sign in/up with Supabase Auth
+	•	PreferencesForm.tsx – User diet prefs, allergies
+	•	UploadReport.tsx – Upload PDF/image, call OCR
+	•	Dashboard.tsx – Show deficiency summary
+	•	RecipesPage.tsx – Fetch and display recipes
+	•	MealPlanner.tsx – Select meals, generate grocery list
+	•	OCR (Tesseract.js):
+	•	Run on client to extract text from uploaded files
+	•	Send results to backend for nutrient analysis
+
+⸻
+
+🔹 3. Backend Tasks (FastAPI on Render)
+
+Endpoints:
+	•	POST /parse_bloodwork: Extracts nutrient values from text
+	•	POST /analyze: Compares against reference ranges
+	•	GET /recipes: Returns recipes based on deficiency
+	•	GET /grocery-list: Combines ingredients from meal plan
+
+Features:
+	•	Host on Render free web service (auto-sleeps when idle)
+	•	Rate limit if necessary using slowapi for free hosting
+	•	Use Pydantic for data validation
+
+⸻
+
+🔹 4. Database (Supabase)
+
+Free tier includes:
+	•	PostgreSQL (500MB+ free)
+	•	Built-in Auth (OAuth/email)
+	•	Row-level security
+	•	File storage for optional media
+
+Tables:
+	•	users: id, email, preferences
+	•	blood_tests: user_id, nutrient, value
+	•	deficiencies: user_id, nutrient, status
+	•	recipes: id, title, ingredients, nutrients
+	•	meal_plans: user_id, date, recipe_ids
+
+⸻
+
+🔹 5. Recipe Data Source (Free Options)
+	•	Use a local CSV of 50–100 recipes with mapped nutrient values (iron, B12, etc.)
+	•	Pull recipes via free trial on Edamam or scrape public nutrition sites
+	•	Store recipe data in Supabase table
+
+⸻
+
+🔹 6. AI/NLP (Free/Open-Source Models)
+	•	Use OpenRouter or Ollama locally to run:
+	•	Mixtral 8x7B (OpenRouter free tier)
+	•	GPT-J, LLaMA 2, or Mistral (Ollama on your machine)
+	•	Prompt examples:
+	•	“Given these nutrient values, which ones are deficient?”
+	•	“Suggest 3 vegetarian iron-rich recipes based on these inputs”
+
+⸻
+
+🔹 7. Deployment
+	•	Frontend:
+	•	Deploy to Vercel via GitHub auto-push
+	•	Backend:
+	•	Deploy to Render with FastAPI Docker config
+	•	Database & Auth:
+	•	Use Supabase for storage, auth, and data
+
+⸻
+
+🧠 Final Agent Notes:
+	•	Keep OCR and LLM logic lightweight to minimize compute cost
+	•	Cache results in local storage or Supabase to reduce repeat API calls
+	•	Ensure UI runs smoothly on low-resource mobile devices
+	•	Prioritize MVP functionality before adding integrations like Apple Health
+
