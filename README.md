@@ -14,8 +14,7 @@ PORT=5050
 CLIENT_URL=https://your-domain.com
 
 # Database
-DATABASE_URL=postgresql://user:password@localhost:5432/nutritracker
-
+DATABASE_URL=
 # Authentication
 AUTH0_SECRET=your-auth0-secret
 AUTH0_BASE_URL=https://your-domain.com
