@@ -1,0 +1,11 @@
+Blood Test Results
+=================
+
+Test Date: 2025-06-21
+
+Parameters:
+- Hemoglobin: 14.5 g/dL
+- Glucose: 95 mg/dL
+- Cholesterol: 180 mg/dL
+- HDL: 55 mg/dL
+- LDL: 100 mg/dL

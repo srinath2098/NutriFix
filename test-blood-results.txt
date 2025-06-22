@@ -1,0 +1,8 @@
+Sample Blood Test Results
+Date: 2025-06-06
+
+Hemoglobin: 14.2 g/dL
+Iron: 95 μg/dL
+Vitamin B12: 450 pg/mL
+Vitamin D: 30 ng/mL
+Ferritin: 100 ng/mL

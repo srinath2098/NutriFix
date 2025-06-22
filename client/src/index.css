@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 210 11% 98%; /* #F5F7FA */
+  --foreground: 215 25% 15%; /* #202A37 */
+  --muted: 210 11% 95%; /* #F0F2F5 */
+  --muted-foreground: 215 15% 45%; /* #6B7280 */
+  --popover: 0 0% 100%;
+  --popover-foreground: 215 25% 15%;
+  --card: 0 0% 100%;
+  --card-foreground: 215 25% 15%;
+  --border: 210 11% 90%; /* #E5E7EB */
+  --input: 210 11% 90%;
+  --primary: 158 64% 52%; /* #10B981 - Health green */
+  --primary-foreground: 158 100% 99%;
+  --secondary: 217 91% 60%; /* #3B82F6 - Health blue */
+  --secondary-foreground: 217 100% 99%;
+  --accent: 210 11% 95%;
+  --accent-foreground: 215 25% 15%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 158 64% 52%;
+  --radius: 0.75rem;
+  
+  /* Health-focused custom colors */
+  --health-green-50: 151 81% 96%; /* #ECFDF5 */
+  --health-green-500: 158 64% 52%; /* #10B981 */
+  --health-green-600: 158 64% 47%; /* #059669 */
+  --health-blue-50: 214 100% 97%; /* #EFF6FF */
+  --health-blue-500: 217 91% 60%; /* #3B82F6 */
+  --health-blue-600: 221 83% 53%; /* #2563EB */
+  --amber-50: 48 100% 96%; /* #FFFBEB */
+  --amber-500: 45 93% 58%; /* #F59E0B */
+  --amber-600: 43 96% 56%; /* #D97706 */
+}
+
+.dark {
+  --background: 215 28% 7%; /* #0F172A */
+  --foreground: 210 11% 98%;
+  --muted: 215 25% 15%;
+  --muted-foreground: 215 15% 65%;
+  --popover: 215 28% 7%;
+  --popover-foreground: 210 11% 98%;
+  --card: 215 28% 7%;
+  --card-foreground: 210 11% 98%;
+  --border: 215 25% 15%;
+  --input: 215 25% 15%;
+  --primary: 158 64% 52%;
+  --primary-foreground: 158 100% 99%;
+  --secondary: 217 91% 60%;
+  --secondary-foreground: 217 100% 99%;
+  --accent: 215 25% 15%;
+  --accent-foreground: 210 11% 98%;
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 158 64% 52%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .health-gradient {
+    background: linear-gradient(135deg, hsl(var(--health-green-500)), hsl(var(--health-blue-500)));
+  }
+  
+  .health-card {
+    @apply bg-white dark:bg-card rounded-xl shadow-sm border border-border;
+  }
+  
+  .deficiency-card {
+    @apply p-4 rounded-lg border;
+  }
+  
+  .deficiency-severe {
+    @apply bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800;
+  }
+  
+  .deficiency-moderate {
+    @apply bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800;
+  }
+  
+  .deficiency-mild {
+    @apply bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800;
+  }
+  
+  .deficiency-normal {
+    @apply bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800;
+  }
+}
