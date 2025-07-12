@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Leaf, Upload, Target, Calendar, Users, Shield } from "lucide-react";
-import { redirectToLogin } from "@/lib/auth";
+import { redirectToLogin } from "@/lib/authUtils";
 
 export default function Landing() {
   const handleLogin = () => {

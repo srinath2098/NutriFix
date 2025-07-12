@@ -1,10 +1,4 @@
-// Simple Tesseract.js OCR integration for client-side blood test extraction
-import { createWorker, createScheduler, RecognizeOptions, Worker } from 'tesseract.js';
-import { parseBloodTestText } from '@/utils/bloodTestParser';
-import { api } from '@/lib/api';
-
-// Type for Tesseract worker instance
-let worker: Worker | undefined;
+// Mistral Vision API integration for blood test text extraction
 
 export interface OCRProgress {
   status: 'idle' | 'loading' | 'recognizing' | 'success' | 'error';
@@ -12,111 +6,114 @@ export interface OCRProgress {
   message: string;
 }
 
-export async function extractTextFromFile(
+export async function extractTextWithMistral(
   file: File,
   onProgress?: (progress: OCRProgress) => void
 ): Promise<string> {
   // Validate file type
-  const validTypes = ['image/jpeg', 'image/png'];
+  const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
   if (!validTypes.includes(file.type)) {
-    throw new Error('Please upload a JPG or PNG file. PDF support coming soon!');
+    throw new Error('Please upload a JPG or PNG file.');
   }
 
-  // Validate file size (max 10MB)
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error('File is too large. Maximum size is 10MB.');
+  // Validate file size (max 20MB - Mistral limit)
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error('File is too large. Maximum size is 20MB.');
   }
 
-  try {
-    // Initialize Tesseract worker with local resources
-    const scheduler = createScheduler();
-    worker = await createWorker('eng', 1, {
-      langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-      logger: m => {
-        if (onProgress) {
-          const percent = 20 + (m.progress * 80);
-          onProgress({
-            status: m.status === 'recognizing text' ? 'recognizing' : 'loading',
-            progress: Math.round(percent),
-            message: m.status === 'recognizing text' ? 'Reading test results...' : 'Processing image...'
-          });
+  const apiKey = import.meta.env.VITE_MISTRAL_API_KEY;
+  if (!apiKey) {
+    throw new Error('Mistral API key is missing. Please add VITE_MISTRAL_API_KEY to your environment variables.');
+  }
+
+  onProgress?.({
+    status: 'loading',
+    progress: 10,
+    message: 'Converting image to base64...'
+  });
+
+  // Convert file to base64
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Remove data URL prefix
+      const base64Data = result.split(',')[1];
+      resolve(base64Data);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  onProgress?.({
+    status: 'recognizing',
+    progress: 50,
+    message: 'Sending to Mistral Vision API...'
+  });
+
+  // Call Mistral Vision API
+  const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'pixtral-12b-2409',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Extract all text from this blood test report image. Return only the raw text content without any formatting or analysis. Include all numerical values, test names, reference ranges, and any other visible text.'
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${file.type};base64,${base64}`
+              }
+            }
+          ]
         }
-      }
-    });
-    scheduler.addWorker(worker);
-    
-    onProgress?.({
-      status: 'loading',
-      progress: 20,
-      message: 'Initializing text recognition...'
-    });
+      ],
+      max_tokens: 2000,
+      temperature: 0
+    })
+  });
 
-    // Convert file to base64
-    const base64Data = await new Promise<string>((resolve, reject) => {
-      try {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result === 'string') {
-            resolve(reader.result);
-          } else {
-            reject(new Error('Failed to read file as data URL'));
-          }
-        };
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsDataURL(file);
-      } catch (error) {
-        reject(error instanceof Error ? error : new Error('Unknown error occurred'));
-      }
-    });
-
-    // Recognize text
-    const result = await scheduler.addJob('recognize', base64Data, {
-      tessedit_pageseg_mode: 6, // Single uniform block of text
-      preserve_interword_spaces: 1, // Preserve spaces between words
-      preserve_interline_spaces: 1, // Preserve spaces between lines
-      preserve_blank_lines: 1, // Preserve blank lines
-      preserve_layout: 1 // Preserve the layout of the text
-    } as Partial<RecognizeOptions>);
-
-    // Clean up worker
-    if (worker) {
-      await worker.terminate();
-    }
-    worker = undefined;
-    await scheduler.terminate();
-
-    const text = result.data.text.trim();
-    
-    // Parse the text into structured nutrient data
-    const nutrients = parseBloodTestText(text);
-    
-    // Save the data to the database
-    const response = await api.post('/api/blood-tests', {
-      testDate: new Date().toISOString(),
-      nutrients: nutrients
-    }).catch((error) => {
-      throw new Error('Failed to save blood test results: ' + error.message);
-    });
-    
-    onProgress?.({
-      status: 'success',
-      progress: 100,
-      message: 'Text extraction complete!'
-    });
-
-    return text;
-  } catch (err) {
-    onProgress?.({
-      status: 'error',
-      progress: 0,
-      message: err instanceof Error ? err.message : 'Failed to process image'
-    });
-    throw err;
-  } finally {
-    // Ensure worker is terminated even if there's an error
-    if (worker) {
-      await worker.terminate();
-    }
-    worker = undefined;
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
+    throw new Error(`Mistral API failed: ${errorMessage}`);
   }
+
+  onProgress?.({
+    status: 'recognizing',
+    progress: 80,
+    message: 'Processing OCR results...'
+  });
+
+  const data = await response.json();
+  const extractedText = data.choices?.[0]?.message?.content;
+  
+  if (!extractedText) {
+    throw new Error('No text could be extracted from the image. Please ensure the image is clear and contains readable text.');
+  }
+
+  onProgress?.({
+    status: 'success',
+    progress: 100,
+    message: 'Text extraction complete!'
+  });
+
+  return extractedText;
+}
+
+// Default export uses Mistral Vision API
+export async function extractTextFromFile(
+  file: File,
+  onProgress?: (progress: OCRProgress) => void
+): Promise<string> {
+  return extractTextWithMistral(file, onProgress);
 }

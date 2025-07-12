@@ -27,11 +27,13 @@ export default function AddRecipe() {
     setLoading(true);
     try {
       await apiRequest("POST", "/api/recipes", {
-        title,
-        description,
-        instructions,
-        ingredients: ingredients.filter(Boolean).map((i) => ({ name: i, amount: "", unit: "" })),
-        targetNutrients,
+        data: {
+          title,
+          description,
+          instructions,
+          ingredients: ingredients.filter(Boolean).map((i) => ({ name: i, amount: "", unit: "" })),
+          targetNutrients,
+        }
       });
       toast({ title: "Recipe Added!", description: "Your recipe has been saved." });
       setTitle(""); setDescription(""); setInstructions(""); setIngredients([""]); setTargetNutrients([]);

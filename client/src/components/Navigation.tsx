@@ -13,6 +13,8 @@ export default function Navigation() {
   const navigation = [
     { name: "Dashboard", href: "/", current: location === "/" },
     { name: "Upload", href: "/upload", current: location === "/upload" },
+    { name: "Results", href: "/blood-test-results", current: location === "/blood-test-results" },
+    { name: "Foods", href: "/food-recommendations", current: location === "/food-recommendations" },
     { name: "Recipes", href: "/recipes", current: location === "/recipes" },
     { name: "Meal Plan", href: "/meal-plan", current: location === "/meal-plan" },
   ];

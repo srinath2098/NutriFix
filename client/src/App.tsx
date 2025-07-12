@@ -12,6 +12,8 @@ import Dashboard from "@/pages/Dashboard";
 import Upload from "@/pages/Upload";
 import Recipes from "@/pages/Recipes";
 import MealPlan from "@/pages/MealPlan";
+import BloodTestResults from "@/pages/BloodTestResults";
+import FoodRecommendations from "@/pages/FoodRecommendations";
 import Navigation from "@/components/Navigation";
 import PreferencesForm from "@/pages/PreferencesForm";
 import AddRecipe from "@/pages/AddRecipe";
@@ -55,6 +57,12 @@ function Router() {
         </Route>
         <Route path="/meal-plan">
           <ProtectedRoute component={MealPlan} />
+        </Route>
+        <Route path="/blood-test-results">
+          <ProtectedRoute component={BloodTestResults} />
+        </Route>
+        <Route path="/food-recommendations">
+          <ProtectedRoute component={FoodRecommendations} />
         </Route>
         <Route path="/preferences">
           <ProtectedRoute component={PreferencesForm} />

@@ -23,7 +23,7 @@ import {
   type InsertUserRecipeRating,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
@@ -38,8 +38,8 @@ export interface IStorage {
   
   // Blood test results operations
   createBloodTestResult(result: Omit<BloodTestResult, 'id'>): Promise<BloodTestResult>;
-  getBloodTestResults(bloodTestId: number): Promise<(BloodTestResult & { nutrient: Nutrient })[]>;
-  getUserDeficiencies(userId: string): Promise<(BloodTestResult & { nutrient: Nutrient })[]>;
+  getBloodTestResults(bloodTestId: number): Promise<BloodTestResult[]>;
+  getUserDeficiencies(userId: string): Promise<BloodTestResult[]>;
   
   // Nutrient operations
   getAllNutrients(): Promise<Nutrient[]>;
@@ -54,7 +54,7 @@ export interface IStorage {
   // Meal plan operations
   createMealPlan(mealPlan: InsertMealPlan): Promise<MealPlan>;
   getUserActiveMealPlan(userId: string): Promise<MealPlan | undefined>;
-  getMealPlanEntries(mealPlanId: number): Promise<(MealPlanEntry & { recipe?: Recipe })[]>;
+  getMealPlanEntries(mealPlanId: number): Promise<(MealPlanEntry & { recipe?: Recipe | null })[]>;
   createMealPlanEntry(entry: InsertMealPlanEntry): Promise<MealPlanEntry>;
   updateMealPlanEntryCompletion(id: number, completed: boolean): Promise<void>;
   
@@ -115,42 +115,24 @@ export class DatabaseStorage implements IStorage {
     return testResult;
   }
 
-  async getBloodTestResults(bloodTestId: number): Promise<(BloodTestResult & { nutrient: Nutrient })[]> {
+  async getBloodTestResults(bloodTestId: number): Promise<BloodTestResult[]> {
     return await db
-      .select({
-        id: bloodTestResults.id,
-        bloodTestId: bloodTestResults.bloodTestId,
-        nutrientId: bloodTestResults.nutrientId,
-        value: bloodTestResults.value,
-        status: bloodTestResults.status,
-        severity: bloodTestResults.severity,
-        nutrient: nutrients,
-      })
+      .select()
       .from(bloodTestResults)
-      .innerJoin(nutrients, eq(bloodTestResults.nutrientId, nutrients.id))
       .where(eq(bloodTestResults.bloodTestId, bloodTestId));
   }
 
-  async getUserDeficiencies(userId: string): Promise<(BloodTestResult & { nutrient: Nutrient })[]> {
+  async getUserDeficiencies(userId: string): Promise<BloodTestResult[]> {
     const latestTest = await this.getLatestBloodTest(userId);
     if (!latestTest) return [];
 
     return await db
-      .select({
-        id: bloodTestResults.id,
-        bloodTestId: bloodTestResults.bloodTestId,
-        nutrientId: bloodTestResults.nutrientId,
-        value: bloodTestResults.value,
-        status: bloodTestResults.status,
-        severity: bloodTestResults.severity,
-        nutrient: nutrients,
-      })
+      .select()
       .from(bloodTestResults)
-      .innerJoin(nutrients, eq(bloodTestResults.nutrientId, nutrients.id))
       .where(
         and(
           eq(bloodTestResults.bloodTestId, latestTest.id),
-          inArray(bloodTestResults.status, ['low', 'deficient'])
+          inArray(bloodTestResults.status, ['deficient', 'insufficient'])
         )
       );
   }
@@ -181,8 +163,8 @@ export class DatabaseStorage implements IStorage {
       .from(recipes)
       .where(
         // Check if any of the target nutrients are in the recipe's targetNutrients array
-        // This is a simplified approach - in production you might want more sophisticated matching
-        inArray(recipes.targetNutrients, targetNutrients)
+        // Using array overlap operator for PostgreSQL arrays
+        sql`${recipes.targetNutrients} && ${targetNutrients}`
       )
       .orderBy(desc(recipes.rating));
   }
@@ -214,7 +196,7 @@ export class DatabaseStorage implements IStorage {
     return activePlan;
   }
 
-  async getMealPlanEntries(mealPlanId: number): Promise<(MealPlanEntry & { recipe?: Recipe })[]> {
+  async getMealPlanEntries(mealPlanId: number): Promise<(MealPlanEntry & { recipe?: Recipe | null })[]> {
     return await db
       .select({
         id: mealPlanEntries.id,

@@ -20,10 +20,10 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// OpenAI endpoints rate limit - more strict due to cost
-export const openAILimiter = rateLimit({
+// Mistral AI endpoints rate limit - more strict due to cost
+export const mistralLimiter = rateLimit({
   windowMs: FIFTEEN_MINUTES,
-  max: 10, // limit each IP to 10 AI requests per windowMs
+  max: 50, // limit each IP to 50 AI requests per windowMs (Mistral has good limits)
   message: 'Too many AI requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,

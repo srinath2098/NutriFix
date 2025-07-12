@@ -5,6 +5,8 @@ import {
   type NormalRange
 } from './types';
 
+export { type NutrientStatus, type NutrientSeverity };
+
 interface NutrientRanges {
   [key: string]: NormalRange;
 }

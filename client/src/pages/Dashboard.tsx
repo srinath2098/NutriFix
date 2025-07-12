@@ -207,10 +207,35 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
+      {/* Test Food Recommendations Card - Remove after testing */}
+      <Card className="mb-8 bg-gradient-to-r from-orange-50 to-red-50 border-orange-200">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-orange-900 mb-2">🧪 Test Food Recommendations</h3>
+              <p className="text-orange-700 mb-4">
+                Since your blood test shows normal levels, try our demo with sample deficiencies to see how the food recommendation system works!
+              </p>
+            </div>
+            <Button 
+              onClick={() => setLocation('/food-recommendations')} 
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              Try Demo
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Latest Blood Test Results */}
       {latestBloodTest?.bloodTestResults && latestBloodTest.bloodTestResults.length > 0 && (
         <div className="mb-8">
-          <h3 className="text-xl font-bold mb-4">Latest Blood Test Results</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold">Latest Blood Test Results</h3>
+            <Button variant="outline" onClick={() => setLocation('/blood-test-results')}>
+              View Detailed Analysis
+            </Button>
+          </div>
           <p className="text-gray-600 mb-4">
               Based on your latest blood test from {latestBloodTest.testDate ? new Date(latestBloodTest.testDate).toLocaleDateString() : 'N/A'}
           </p>

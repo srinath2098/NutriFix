@@ -120,7 +120,7 @@ export default function Upload() {
         formData.append("extractedText", extractedText);
 
         updateStep("analysis", false, true);
-        const response = await apiRequest("POST", "/api/blood-tests", formData);
+        const response = await apiRequest("POST", "/api/blood-tests", { data: formData });
         if (!response.ok) {
           throw new Error("Failed to upload test results");
         }

@@ -36,13 +36,15 @@ export async function apiRequest(
   const baseUrl = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5050';
   const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
   
+  const isFormData = data instanceof FormData;
+  
   const res = await fetch(fullUrl, {
     method,
     headers: {
-      ...(data ? { "Content-Type": "application/json" } : {}),
+      ...(data && !isFormData ? { "Content-Type": "application/json" } : {}),
       ...headers
     },
-    body: data ? JSON.stringify(data) : undefined,
+    body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
     credentials: "include",
     signal
   });

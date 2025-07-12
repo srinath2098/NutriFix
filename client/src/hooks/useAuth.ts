@@ -1,44 +1,61 @@
 import { useQuery } from "@tanstack/react-query";
-import { redirectToLogin } from '@/lib/auth';
+import { getQueryFn } from "../lib/queryClient";
+import { redirectToLogin } from "../lib/authUtils";
 
-export interface User {
-  sub: string;
-  name: string;
-  email: string;
-  picture: string;
-}
+export type User = {
+  id: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  profileImageUrl?: string;
+  dietaryPreferences?: string[];
+  allergies?: string[];
+  healthGoals?: string[];
+};
 
-export const useAuth = () => {
-  const { data: user, isLoading, error, refetch } = useQuery<User | null>({
+export function useAuth() {
+  const { data: user, isLoading, error, refetch } = useQuery<User>({
     queryKey: ["/api/user"],
     queryFn: async () => {
       try {
-        const response = await fetch('/api/user', {
+        console.log("Fetching user data...");
+        const baseUrl = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5050';
+        const response = await fetch(`${baseUrl}/api/user`, {
           credentials: "include",
           headers: {
             'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+            'Origin': window.location.origin
           }
         });
         
         if (response.status === 401) {
-          redirectToLogin();
+          console.log("User not authenticated");
           return null;
         }
         
         if (!response.ok) {
-          throw new Error('Failed to fetch user');
+          throw new Error(`${response.status}: ${response.statusText}`);
         }
         
-        return await response.json();
+        const data = await response.json();
+        console.log("Auth success:", data);
+        return data;
       } catch (error) {
         console.error("Auth error:", error);
-        redirectToLogin();
         return null;
       }
     },
     retry: false,
     refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    staleTime: 0,
   });
 
-  return { user, isLoading, error, refetch, isAuthenticated: !!user };
-};
+  return {
+    user,
+    isLoading,
+    error,
+    isAuthenticated: !!user,
+  };
+}

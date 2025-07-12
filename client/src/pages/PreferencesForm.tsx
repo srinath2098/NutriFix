@@ -20,9 +20,11 @@ export default function PreferencesForm() {
     setLoading(true);
     try {
       await apiRequest("PATCH", "/api/user/preferences", {
-        dietaryPreferences,
-        allergies,
-        healthGoals,
+        data: {
+          dietaryPreferences,
+          allergies,
+          healthGoals,
+        }
       });
       toast({
         title: "Preferences Saved!",

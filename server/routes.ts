@@ -4,15 +4,17 @@ import { db } from "./db";
 import { eq } from "drizzle-orm";
 import { 
   bloodTests,
+  bloodTestResults,
   users,
   type BloodTest
 } from "@shared/schema";
 import { analyzeNutrientValue } from "./utils/nutrientRanges";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { analyzeBloodTestText, generateRecipeRecommendations } from "./openai";
+import { analyzeBloodTestText, generateRecipeRecommendations, generateWeeklyMealPlan } from "./mistral";
 import { storage } from "./storage";
+import { nutritionDatabase } from "./data/nutritionDatabase";
 import multer from "multer";
-import { apiLimiter, authLimiter, openAILimiter } from "./middleware/rateLimit";
+import { apiLimiter, authLimiter, mistralLimiter } from "./middleware/rateLimit";
 import { z } from "zod";
 import { handleManualBloodTestEntry } from "./routes/bloodTests";
 import { manualBloodTestSchema, type ManualBloodTestEntry } from '@shared/types';
@@ -46,19 +48,14 @@ const manualEntrySchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Initialize auth middleware
+  // Auth middleware
   await setupAuth(app);
-
-  // Rate limiting for API endpoints
-  app.use('/api', apiLimiter);
-  app.use('/api/auth', authLimiter);
-  app.use('/api/openai', openAILimiter);
   
   // Rate limiting
   app.use('/api/', apiLimiter);
   app.use(['/api/login', '/api/callback'], authLimiter);
-  app.use(['/api/bloodtest', '/api/recipes/recommended', '/api/meal-plan/generate'], openAILimiter);
-  app.use('/api/bloodtest/manual', openAILimiter); // Add OpenAI rate limit since we use it for analysis
+  app.use(['/api/bloodtest', '/api/recipes/recommended', '/api/meal-plan/generate'], mistralLimiter);
+  app.use('/api/bloodtest/manual', mistralLimiter); // Add Mistral rate limit since we use it for analysis
   
   // Protected routes
   app.use(['/api/bloodtest', '/api/recipes', '/api/meal-plan'], isAuthenticated);
@@ -108,16 +105,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Extracted text is required" });
       }
 
-      const bloodTestData = insertBloodTestSchema.parse({
+      const bloodTestData = {
         userId,
         testDate: new Date(testDate),
         fileName: req.file?.originalname,
         extractedText,
-      });
+      };
 
       const bloodTest = await storage.createBloodTest(bloodTestData);
       
-      // Analyze the extracted text with OpenAI
+      // Analyze the extracted text with Gemini
       const analysis = await analyzeBloodTestText(extractedText);
       
       // Store the analysis results
@@ -130,12 +127,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           continue;
         }
 
+        const analysis = analyzeNutrientValue(nutrientResult.name, nutrientResult.value);
         await storage.createBloodTestResult({
           bloodTestId: bloodTest.id,
-          nutrientId: nutrient.id,
+          nutrientName: nutrientResult.name,
           value: nutrientResult.value,
-          status: nutrientResult.status,
-          severity: nutrientResult.severity ?? null,
+          unit: nutrientResult.unit,
+          status: analysis.status,
+          severity: analysis.severity,
+          minRange: analysis.minRange,
+          maxRange: analysis.maxRange,
+          createdAt: new Date(),
         });
       }
 
@@ -186,6 +188,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Nutrition information endpoint
+  app.get('/api/nutrition-info', async (req, res) => {
+    try {
+      res.json(nutritionDatabase);
+    } catch (error) {
+      console.error("Error fetching nutrition info:", error);
+      res.status(500).json({ message: "Failed to fetch nutrition information" });
+    }
+  });
+
+  // Test endpoint to simulate deficiencies for demo
+  app.get('/api/test-deficiencies', isAuthenticated, async (req: any, res) => {
+    try {
+      // Sample deficiencies for testing the food recommendation system
+      const testDeficiencies = [
+        {
+          id: 999,
+          nutrientName: "Vitamin D",
+          value: 18,
+          unit: "ng/mL",
+          status: "deficient",
+          severity: "moderate",
+          minRange: 30,
+          maxRange: 100,
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 998,
+          nutrientName: "Iron",
+          value: 8,
+          unit: "mg",
+          status: "deficient", 
+          severity: "mild",
+          minRange: 12,
+          maxRange: 18,
+          createdAt: new Date().toISOString()
+        }
+      ];
+      res.json(testDeficiencies);
+    } catch (error) {
+      console.error("Error creating test deficiencies:", error);
+      res.status(500).json({ message: "Failed to create test deficiencies" });
+    }
+  });
+
   // Recipe routes
   app.get('/api/recipes', isAuthenticated, async (req: any, res) => {
     try {
@@ -205,6 +252,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate AI recipes based on deficiencies
+  app.post('/api/recipes/generate', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.oidc.user.sub;
+      const { deficiencies } = req.body;
+
+      if (!deficiencies || !Array.isArray(deficiencies) || deficiencies.length === 0) {
+        return res.status(400).json({ message: "Deficiencies array is required" });
+      }
+
+      // Get user dietary preferences
+      const user = await storage.getUser(userId);
+      
+      console.log('Generating recipes for deficiencies:', deficiencies);
+      console.log('User preferences:', {
+        dietary: user?.dietaryPreferences || [],
+        allergies: user?.allergies || []
+      });
+
+      // Generate recipes using Mistral AI
+      const generatedRecipes = await generateRecipeRecommendations(
+        deficiencies,
+        user?.dietaryPreferences || [],
+        user?.allergies || []
+      );
+
+      console.log('Generated recipes:', generatedRecipes.length, 'recipes');
+
+      // Store the generated recipes in the database
+      const savedRecipes = [];
+      for (const recipe of generatedRecipes) {
+        try {
+          const savedRecipe = await storage.createRecipe({
+            title: recipe.title,
+            description: recipe.description,
+            instructions: recipe.instructions,
+            ingredients: recipe.ingredients,
+            cookTime: recipe.cookTime,
+            servings: recipe.servings,
+            nutritionalBenefits: recipe.nutritionalBenefits,
+            targetNutrients: recipe.targetNutrients,
+            dietaryTags: recipe.dietaryTags,
+            imageUrl: null,
+            rating: null,
+          });
+          savedRecipes.push(savedRecipe);
+        } catch (dbError) {
+          console.error('Error saving recipe:', recipe.title, dbError);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Generated ${savedRecipes.length} recipes for your nutrient deficiencies`,
+        recipes: savedRecipes,
+        targetedNutrients: deficiencies
+      });
+
+    } catch (error) {
+      console.error('Recipe generation error:', error);
+      
+      const isMistralError = error instanceof Error && error.message.includes('Mistral');
+      
+      res.status(isMistralError ? 503 : 500).json({
+        error: isMistralError 
+          ? 'AI recipe generation temporarily unavailable. Please try again later.'
+          : 'Failed to generate recipes',
+        code: isMistralError ? 'AI_UNAVAILABLE' : 'GENERATION_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   app.get('/api/recipes/recommended', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.oidc.user.sub;
@@ -215,7 +335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json([]);
       }
 
-      const deficientNutrients = deficiencies.map(d => d.nutrient.name);
+      const deficientNutrients = deficiencies.map(d => d.nutrientName);
       
       // First try to get existing recipes that target these nutrients
       const existingRecipes = await storage.getRecipesByNutrients(deficientNutrients);
@@ -223,7 +343,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingRecipes.length > 0) {
         res.json(existingRecipes.slice(0, 6)); // Return top 6
       } else {
-        // Generate new recipes using OpenAI
+        // Generate new recipes using Gemini
         const newRecipes = await generateRecipeRecommendations(
           deficientNutrients,
           user?.dietaryPreferences || [],
@@ -296,7 +416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No deficiencies found to address" });
       }
 
-      const deficientNutrients = deficiencies.map(d => d.nutrient.name);
+      const deficientNutrients = deficiencies.map(d => d.nutrientName);
       const availableRecipes = await storage.getRecipesByNutrients(deficientNutrients);
       
       // Create a new meal plan
@@ -309,28 +429,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: true,
       });
 
-      // Generate meal plan with OpenAI
+      // Generate meal plan with Gemini
+      const user = await storage.getUser(userId);
       const weeklyPlan = await generateWeeklyMealPlan(
-        availableRecipes.map(r => ({
-          id: r.id,
-          title: r.title,
-          targetNutrients: r.targetNutrients || [],
-        })),
-        deficientNutrients
+        deficientNutrients,
+        {
+          dietaryPreferences: user?.dietaryPreferences || [],
+          allergies: user?.allergies || [],
+          healthGoals: user?.healthGoals || []
+        }
       );
 
       // Store meal plan entries
       const entries = [];
-      for (const day of weeklyPlan) {
-        const date = new Date(day.date);
+      for (let i = 0; i < weeklyPlan.weekPlan.length; i++) {
+        const day = weeklyPlan.weekPlan[i];
+        const date = new Date(weekStartDate);
+        date.setDate(date.getDate() + i);
         
         for (const [mealType, meal] of Object.entries(day.meals)) {
+          const mealData = meal as any; // Type assertion for the meal object
           const entry = await storage.createMealPlanEntry({
             mealPlanId: mealPlan.id,
             date,
             mealType,
-            recipeId: meal.recipeId || null,
-            customMeal: meal.customMeal || null,
+            recipeId: null, // Gemini generates meal descriptions, not specific recipe IDs
+            customMeal: `${mealData.name}: ${mealData.description}`,
             completed: false,
           });
           entries.push(entry);
@@ -465,8 +589,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId,
           testDate: new Date(req.body.testDate),
           fileName: req.file.originalname,
-          fileType: req.file.mimetype,
-          fileSize: req.file.size,
           extractedText,
           confidence: analysis.confidence,
           warnings: analysis.warnings || [],
@@ -502,11 +624,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         analysis.nutrients
           .filter(n => n.status !== 'normal')
           .map(n => n.name),
-        {
-          dietaryPreferences: user?.dietaryPreferences || [],
-          allergies: user?.allergies || [],
-          healthGoals: user?.healthGoals || []
-        }
+        user?.dietaryPreferences || [],
+        user?.allergies || []
       );
 
       res.json({
@@ -519,13 +638,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Blood test upload error:', error);
       
-      const isOpenAIError = error instanceof Error && error.message.includes('OpenAI');
+      const isMistralError = error instanceof Error && error.message.includes('Mistral');
       
-      res.status(isOpenAIError ? 503 : 500).json({
-        error: isOpenAIError 
+      res.status(isMistralError ? 503 : 500).json({
+        error: isMistralError 
           ? 'Analysis service temporarily unavailable. Please try again later.'
           : 'Failed to process blood test results',
-        code: isOpenAIError ? 'ANALYSIS_UNAVAILABLE' : 'UPLOAD_FAILED',
+        code: isMistralError ? 'ANALYSIS_UNAVAILABLE' : 'UPLOAD_FAILED',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
@@ -543,8 +662,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId,
           testDate: new Date(validatedData.testDate),
           fileName: 'manual-entry',
-          fileType: 'manual',
-          fileSize: 0,
           extractedText: JSON.stringify(validatedData.nutrients),
           confidence: 1.0,
           warnings: []

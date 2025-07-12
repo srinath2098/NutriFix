@@ -1,149 +1,91 @@
 import 'dotenv/config';
+console.log('DATABASE_URL:', process.env.DATABASE_URL);
 import express, { type Request, Response, NextFunction } from "express";
-import cors from 'cors';
-import helmet from 'helmet';
-import compression from 'compression';
-import rateLimit from 'express-rate-limit';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { isProduction, logger } from './init';
-import { setupAuth } from './replitAuth';
 import { registerRoutes } from "./routes";
+import { setupVite, serveStatic, log } from "./vite";
+import cors from 'cors';
+import { auth } from 'express-openid-connect';
+import { config as authConfig } from './replitAuth';
 
-// Get current directory in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const app = express();
 
-const expressApp = express();
-const server = createServer(expressApp);
-const io = new Server(server);
-
-// Set up middleware in the correct order
-// Security first
-// Disable CSP for development
-expressApp.use(helmet({
-  contentSecurityPolicy: false
-}));
-
-// Compression
-expressApp.use(compression());
+// Security and proxy settings
+app.enable('trust proxy');
+app.set('trust proxy', 1);
 
 // CORS configuration
-expressApp.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost:\d+$/.test(origin)) || (process.env.NODE_ENV === 'production' && origin === process.env.CLIENT_URL)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.CLIENT_URL 
+    : ['http://localhost:5173', 'http://localhost:5174'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Set-Cookie']
 }));
 
-// Body parsing
-expressApp.use(express.json());
-expressApp.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-// Rate limiting
-expressApp.use('/api', rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
-}));
+// Middleware for all routes
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-// Set up authentication
-setupAuth(expressApp);
+  const originalResJson = res.json;
+  res.json = function (bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
 
-// Serve static files
-expressApp.use(express.static('dist/public', {
-  maxAge: '1d'
-}));
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path.startsWith("/api")) {
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
 
-// Register API routes
-registerRoutes(expressApp);
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
+      }
 
-// Add a catch-all route for React router
-expressApp.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/public/index.html'));
-});
-
-// WebSocket connection handling
-io.on('connection', (socket) => {
-  logger.info('WebSocket client connected', { id: socket.id });
-  
-  socket.on('disconnect', () => {
-    logger.info('WebSocket client disconnected', { id: socket.id });
+      log(logLine);
+    }
   });
+
+  next();
 });
 
-// Error handling middleware
-expressApp.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
-  let message = 'An unexpected error occurred';
-  let stack: string | undefined;
-  let status = 500;
+(async () => {
+  const server = await registerRoutes(app);
 
-  if (err instanceof Error) {
-    message = err.message;
-    stack = err.stack;
-    if ('status' in err && typeof (err as any).status === 'number') {
-      status = (err as any).status;
-    }
-    if ('statusCode' in err && typeof (err as any).statusCode === 'number') {
-      status = (err as any).statusCode;
-    }
-  } else if (typeof err === 'object' && err !== null) {
-    if ('message' in err) message = String((err as any).message);
-    if ('status' in err) status = Number((err as any).status);
-    if ('statusCode' in err) status = Number((err as any).statusCode);
-  } else if (typeof err === 'string') {
-    message = err;
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    res.status(status).json({ message });
+    throw err;
+  });
+
+  // importantly only setup vite in development and after
+  // setting up all the other routes so the catch-all route
+  // doesn't interfere with the other routes
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
   }
 
-  logger.error('API Error:', {
-    error: message,
-    stack: stack,
-    path: req.path,
-    method: req.method,
-    timestamp: new Date(),
-    status: status
+  // ALWAYS serve the app on port 5050 (changed from 5000)
+  // this serves both the API and the client.
+  // It is the only port that is not firewalled.
+  const port = 5050;
+  server.listen({
+    port,
+    host: "0.0.0.0",
+  }, () => {
+    log(`serving on port ${port}`);
   });
-  
-  const responseMessage = isProduction && status === 500 
-    ? 'Internal Server Error' 
-    : message;
-  
-  res.status(status).json({
-    error: responseMessage,
-    stack: isProduction ? undefined : stack,
-    code: 'SERVER_ERROR'
-  });
-});
-
-// Global error handling
-process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception:', {
-    error: error.message,
-    stack: error.stack,
-    timestamp: new Date()
-  });
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection:', {
-    promise,
-    reason: (reason instanceof Error) ? reason.message : reason,
-    stack: (reason instanceof Error) ? reason.stack : undefined,
-    timestamp: new Date()
-  });
-});
-
-// Start server
-const port = process.env.PORT || 5050;
-server.listen(port, () => {
-  logger.info(`Server running on port ${port}`);
-});
-
+})();

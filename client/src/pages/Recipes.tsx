@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, Filter, Clock, Star, Users } from "lucide-react";
 import RecipeCard from "@/components/RecipeCard";
+import GenerateRecipesButton from "@/components/GenerateRecipesButton";
 
 export default function Recipes() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -15,20 +16,32 @@ export default function Recipes() {
     queryKey: ["/api/recipes"],
   });
 
-  const { data: deficiencies = [] } = useQuery({
+  // Get both real and test deficiencies
+  const { data: realDeficiencies = [] } = useQuery({
     queryKey: ["/api/deficiencies"],
   });
+
+  const { data: testDeficiencies = [] } = useQuery({
+    queryKey: ["/api/test-deficiencies"],
+    enabled: Array.isArray(realDeficiencies) && realDeficiencies.length === 0,
+  });
+
+  const deficiencies = Array.isArray(realDeficiencies) && realDeficiencies.length > 0 ? realDeficiencies : testDeficiencies;
 
   const { data: recommendedRecipes = [] } = useQuery({
     queryKey: ["/api/recipes/recommended"],
   });
 
-  const filteredRecipes = recipes.filter((recipe: any) => {
+  const recipesArray = Array.isArray(recipes) ? recipes : [];
+  const recommendedRecipesArray = Array.isArray(recommendedRecipes) ? recommendedRecipes : [];
+  const deficienciesArray = Array.isArray(deficiencies) ? deficiencies : [];
+
+  const filteredRecipes = recipesArray.filter((recipe: any) => {
     const matchesSearch = recipe.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          recipe.description?.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (selectedFilter === "recommended") {
-      return matchesSearch && recommendedRecipes.some((r: any) => r.id === recipe.id);
+      return matchesSearch && recommendedRecipesArray.some((r: any) => r.id === recipe.id);
     }
     
     if (selectedFilter && selectedFilter !== "all") {
@@ -39,10 +52,12 @@ export default function Recipes() {
   });
 
   const availableNutrients = [...new Set(
-    recipes.flatMap((recipe: any) => recipe.targetNutrients || [])
+    recipesArray.flatMap((recipe: any) => recipe.targetNutrients || [])
   )];
 
-  const deficientNutrients = deficiencies.map((d: any) => d.nutrient.name.toLowerCase());
+  const deficientNutrients = deficienciesArray
+    .filter((d: any) => d.nutrient?.name)
+    .map((d: any) => d.nutrient.name.toLowerCase());
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20 md:pb-8">
@@ -85,7 +100,7 @@ export default function Recipes() {
                 Recommended
               </Button>
 
-              {deficientNutrients.map((nutrient) => (
+              {deficientNutrients.map((nutrient: string) => (
                 <Button
                   key={nutrient}
                   variant={selectedFilter === nutrient ? "default" : "outline"}
@@ -101,8 +116,28 @@ export default function Recipes() {
         </CardContent>
       </Card>
 
+      {/* Generate Recipes Section */}
+      {deficienciesArray.length > 0 && recommendedRecipesArray.length === 0 && (
+        <Card className="mb-8 bg-gradient-to-r from-blue-50 to-green-50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">🍳 Generate Personalized Recipes</h3>
+                <p className="text-gray-600 mb-2">
+                  Based on your {deficienciesArray.length === 1 ? 'deficiency' : 'deficiencies'}: {deficienciesArray.map(d => d.nutrientName).join(', ')}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Our AI will create recipes that specifically target your nutrient needs using the best food sources.
+                </p>
+              </div>
+              <GenerateRecipesButton deficiencies={deficienciesArray} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Recommended Recipes Section */}
-      {recommendedRecipes.length > 0 && !selectedFilter && !searchTerm && (
+      {recommendedRecipesArray.length > 0 && !selectedFilter && !searchTerm && (
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Recommended for You</h2>
@@ -115,7 +150,7 @@ export default function Recipes() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {recommendedRecipes.slice(0, 3).map((recipe: any) => (
+            {recommendedRecipesArray.slice(0, 3).map((recipe: any) => (
               <RecipeCard key={recipe.id} recipe={recipe} isRecommended />
             ))}
           </div>
@@ -153,7 +188,7 @@ export default function Recipes() {
               <RecipeCard 
                 key={recipe.id} 
                 recipe={recipe} 
-                isRecommended={recommendedRecipes.some((r: any) => r.id === recipe.id)}
+                isRecommended={recommendedRecipesArray.some((r: any) => r.id === recipe.id)}
               />
             ))}
           </div>

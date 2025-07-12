@@ -1,18 +1,22 @@
-import { type NutrientStatus, type NutrientSeverity } from './types';
+import { NutrientStatus, NutrientSeverity, analyzeNutrientValue } from './nutrientRanges';
 import { bloodTestResults, nutrients } from '@shared/schema';
 import { db } from '../db';
-import { analyzeNutrientValue } from './nutrientRanges';
-import type { BloodTestResult } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
-interface NutrientAnalysis {
-  status: NutrientStatus;
-  severity: NutrientSeverity | null;
+interface NutrientResult {
+  bloodTestId: number;
+  nutrientName: string;
+  value: number;
+  unit: string;
+  status: string;
+  severity: string | null;
   minRange: number;
   maxRange: number;
+  createdAt: Date;
 }
 
 export async function analyzeAndStoreBloodTest(bloodTestId: number, nutrientData: Array<{ name: string; value: number; unit: string }>) {
-  const results: Omit<BloodTestResult, 'id' | 'createdAt'>[] = [];
+  const results: NutrientResult[] = [];
   
   for (const entry of nutrientData) {
     // Find or create nutrient
@@ -34,9 +38,10 @@ export async function analyzeAndStoreBloodTest(bloodTestId: number, nutrientData
         value: entry.value,
         unit: entry.unit,
         status: analysis.status,
-        severity: analysis.severity || 'normal',
+        severity: analysis.severity,
         minRange: analysis.minRange,
-        maxRange: analysis.maxRange
+        maxRange: analysis.maxRange,
+        createdAt: new Date(),
       });
     } else {
       const analysis = analyzeNutrientValue(entry.name, entry.value);
@@ -46,9 +51,10 @@ export async function analyzeAndStoreBloodTest(bloodTestId: number, nutrientData
         value: entry.value,
         unit: entry.unit,
         status: analysis.status,
-        severity: analysis.severity || 'normal',
+        severity: analysis.severity,
         minRange: analysis.minRange,
-        maxRange: analysis.maxRange
+        maxRange: analysis.maxRange,
+        createdAt: new Date(),
       });
     }
   }

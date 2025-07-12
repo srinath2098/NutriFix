@@ -48,7 +48,7 @@ export default function MealPlan() {
 
   const completeMealMutation = useMutation({
     mutationFn: async ({ entryId, completed }: { entryId: number; completed: boolean }) => {
-      const response = await apiRequest("PATCH", `/api/meal-plans/entries/${entryId}/complete`, { completed });
+      const response = await apiRequest("PATCH", `/api/meal-plans/entries/${entryId}/complete`, { data: { completed } });
       return response.json();
     },
     onSuccess: () => {

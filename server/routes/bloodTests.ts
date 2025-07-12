@@ -1,8 +1,7 @@
 import { type Request, type Response } from 'express';
-import { type RecipeRecommendation } from '../openai';
 import { manualBloodTestSchema } from '../validation/bloodTest';
 import { processBloodTestNutrients } from '../utils/nutrientAnalysis';
-import { generateRecipeRecommendations } from '../openai';
+import { generateRecipeRecommendations, type RecipeRecommendation } from '../mistral';
 import { db } from '../db';
 import { bloodTests, bloodTestResults, type BloodTest } from '@shared/schema';
 
