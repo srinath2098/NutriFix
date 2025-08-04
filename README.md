@@ -1,6 +1,6 @@
 # NutriTracker
 
-A modern nutrition tracking application built with React, Express, and PostgreSQL.
+NutriTracker is a health app that turns your blood test results into personalized daily meal plans and lifestyle tips. Users upload or enter their lab data, and the app analyzes key biomarkers to detect deficiencies and suggest actionable improvements, all while tracking progress over time.
 
 ## Production Deployment Checklist
 
