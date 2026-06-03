@@ -39,7 +39,6 @@ export function getSession() {
     tableName: "sessions",
   });
 
-  const isLocalhost = process.env.REPLIT_DOMAINS?.includes('localhost');
   const isProd = process.env.NODE_ENV === 'production';
 
   return session({

@@ -1,110 +1,82 @@
-# NutriTracker
+# NutriFix
 
-NutriTracker is a health app that turns your blood test results into personalized daily meal plans and lifestyle tips. Users upload or enter their lab data, and the app analyzes key biomarkers to detect deficiencies and suggest actionable improvements, all while tracking progress over time.
+NutriFix is a health application that transforms your blood test results into personalized daily meal plans and lifestyle tips. By uploading or entering lab data, the app analyzes key biomarkers to detect deficiencies and suggests actionable improvements, allowing you to track progress over time.
 
-## Production Deployment Checklist
+## 🚀 Tech Stack
 
-### Environment Variables
-Create a `.env` file in the root directory with the following variables:
+- **Frontend:** React, Vite, TailwindCSS
+- **Backend:** Node.js, Express.js
+- **Database:** PostgreSQL (Neon Serverless), Drizzle ORM
+- **Authentication:** Auth0
+- **AI Integration:** Mistral AI (for analysis and recipe recommendations)
+
+## 📁 Project Structure
+
+The repository is structured as a monorepo containing both the frontend and backend:
+
+- `frontend/`: The React application built with Vite.
+- `backend/`: The Node.js/Express server that serves the API and the statically built frontend.
+- `shared/`: Shared TypeScript schemas and types used by both frontend and backend (e.g., Drizzle schema).
+
+## 🛠️ Local Development Setup
+
+### 1. Install Dependencies
+```bash
+npm install
+```
+
+### 2. Environment Variables
+Create a `.env` file in the root directory and populate it with the following required variables:
 
 ```env
-# Server Configuration
-NODE_ENV=production
-PORT=5050
-CLIENT_URL=https://your-domain.com
-
 # Database
-DATABASE_URL=
-# Authentication
+DATABASE_URL=your_neon_postgres_url
+
+# Authentication (Auth0)
 AUTH0_SECRET=your-auth0-secret
-AUTH0_BASE_URL=https://your-domain.com
+AUTH0_BASE_URL=http://localhost:5050
 AUTH0_ISSUER_BASE_URL=https://your-tenant.auth0.com
 AUTH0_CLIENT_ID=your-auth0-client-id
 AUTH0_CLIENT_SECRET=your-auth0-client-secret
 
-# Security
-SESSION_SECRET=your-session-secret
-RATE_LIMIT_WINDOW_MS=900000  # 15 minutes
-RATE_LIMIT_MAX_REQUESTS=100
-
-# Logging
-LOG_LEVEL=info  # debug, info, warn, error
+# Server Configuration
+SESSION_SECRET=your-secure-session-secret
 ```
 
-### Production Build Steps
-
-1. Install dependencies:
+### 3. Database Initialization
+Push the Drizzle schema to your database:
 ```bash
-npm install
+npm run db:push
 ```
 
-2. Build the application:
-```bash
-npm run build
-```
-
-3. Start the production server:
-```bash
-npm start
-```
-
-### Security Considerations
-
-1. Ensure all environment variables are properly set and secure
-2. Use HTTPS in production
-3. Keep dependencies up to date
-4. Monitor rate limiting and adjust as needed
-5. Regularly backup the database
-6. Set up proper logging and monitoring
-
-### Performance Optimization
-
-The application includes:
-- Compression middleware
-- Static file caching
-- Rate limiting
-- Security headers
-- Production error handling
-- Winston logging
-
-### Monitoring
-
-Monitor the following:
-- Server response times
-- Error rates
-- Rate limit hits
-- Database performance
-- Memory usage
-- CPU usage
-
-### Backup Strategy
-
-1. Regular database backups
-2. Environment variable backups
-3. Application state backups
-4. Log retention policy
-
-## Development
-
-### Local Development
-
-1. Install dependencies:
-```bash
-npm install
-```
-
-2. Start development server:
+### 4. Start the Development Server
 ```bash
 npm run dev
 ```
+This command concurrently starts the Vite dev server for the frontend and the `tsx` watcher for the backend API. The app will be available at `http://localhost:5050`.
 
-### Testing
+## 📦 Production Deployment
 
+The project is designed to be deployed as a monolithic application where the Express backend serves the pre-built React frontend. This makes it easily deployable on platforms like Render, Heroku, or standard VPS environments.
+
+### Build the Application
 ```bash
-npm run check
-npm run typecheck
+npm run build
+```
+This script will build the Vite frontend into `dist/public` and bundle the Express backend using `esbuild` into `dist/index.js`.
+
+### Start the Server
+```bash
+# Ensure you set NODE_ENV=production and all production environment variables
+npm start
 ```
 
-## License
+### Deployment Checklist
+1. Provide all production Environment Variables (including `CLIENT_URL` and `NODE_ENV=production`).
+2. Run database migrations/schema push on your production database.
+3. Use `npm install` and `npm run build` during the deployment step.
+4. Run `npm start` as your start command.
 
-MIT 
+## 📄 License
+
+MIT

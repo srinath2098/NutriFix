@@ -9,7 +9,7 @@ import {
   type BloodTest
 } from "@shared/schema";
 import { analyzeNutrientValue } from "./utils/nutrientRanges";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./auth";
 import { analyzeBloodTestText, generateRecipeRecommendations, generateWeeklyMealPlan } from "./mistral";
 import { storage } from "./storage";
 import { nutritionDatabase } from "./data/nutritionDatabase";

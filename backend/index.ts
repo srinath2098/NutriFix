@@ -5,7 +5,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cors from 'cors';
 import { auth } from 'express-openid-connect';
-import { config as authConfig } from './replitAuth';
+import { config as authConfig } from './auth';
 
 const app = express();
 
